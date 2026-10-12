@@ -44,11 +44,17 @@ namespace strata::core {
 /// bytes arrive layer by layer: `run` holds a layer's plan (the first thing that lets the GPU read the layer's expert
 /// slots) back until `landed >= layer` for a layer with a swap (`has[layer]`).  Set `active` only around one window.
 struct AdaptGate {
-    struct Tick { AdaptGate* gate; int32_t layer; };
+    struct Tick { std::atomic<int32_t>* counter; int32_t layer; };
     std::atomic<int32_t> landed{-1};      ///< the highest layer whose swap copies have landed (n_layers: all of them)
     std::atomic<bool> active{false};
     std::vector<uint8_t> has;             ///< per layer: a swap copies into this layer's slots
+    int32_t last = -1;                    ///< the highest layer with a swap this round (-1: none)
     std::vector<Tick> ticks;              ///< host-function contexts, one per layer and the final one (stable storage)
+    /// The peer tier's copies (--peer-device, STRATA_ADAPT_OVERLAP=1): its own counter, raised by host functions on its
+    /// refill stream in layer order; a layer with a peer swap waits for it as well.
+    std::atomic<int32_t> peer_landed{-1};
+    std::vector<uint8_t> peer_has;
+    int32_t peer_last = -1;
 };
 
 class NativeHead;
